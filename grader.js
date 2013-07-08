@@ -24,6 +24,8 @@ and basic DOM parsing.
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var rest = require('restler');
+var util = require('util');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
 
@@ -34,6 +36,22 @@ var assertFileExists = function(infile) {
 	process.exit(1); //http://nodejs.org/api/process.html#process_process_exit_code
     }
     return instr;
+};
+
+var writeHtml = function(inurl, checkurl) {
+    var webresponse = function(result, response) {
+	if (result instanceof Error) {
+	    console.error('Error: ' + util.format(response.message));
+	} else {
+	    console.error("Downloaded %s", inurl);
+	    console.error("Wrote temp.html");
+	    fs.writeFileSync("temp.html", result);
+	    var checkJson = checkHtmlFile("temp.html", checkurl);
+	    var outJson = JSON.stringify(checkJson, null, 4);
+	    console.log(outJson);
+	}
+    };
+    return webresponse;
 };
 
 var cheerioHtmlFile = function(htmlfile) {
@@ -65,10 +83,16 @@ if (require.main == module) {
     program
 	.option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
 	.option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+	.option('-u, --url <url>', 'Url to download')
 	.parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+    if (program.url) {
+	var writeHtml = writeHtml(program.url, program.checks);
+	rest.get(program.url).on('complete', writeHtml);
+    } else {
+	var checkJson = checkHtmlFile(program.file, program.checks);
+	var outJson = JSON.stringify(checkJson, null, 4);
+	console.log(outJson);
+    }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
